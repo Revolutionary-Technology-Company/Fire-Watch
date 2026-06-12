@@ -83,3 +83,56 @@ def analyze_frame_nvidia_cuda(frame_bytes, width, height, red_threshold=190):
     fire_pixels = np.sum(h_output)
     
     return (fire_pixels / (width * height)) * 100.0
+import sys
+import argparse
+
+def main():
+    # 1. Initialize the CLI argument parsing engine
+    parser = argparse.ArgumentParser(description="High-Speed Hardware Accelerated Fire Detection Stream Processor")
+    parser.add_argument("--width", type=int, required=True, help="Width configuration dimensions of incoming frame image matrix")
+    parser.add_argument("--height", type=int, required=True, help="Height configuration dimensions of incoming frame image matrix")
+    parser.add_argument("--use_gpu", type=bool, default=True, help="Force execution on NVIDIA CUDA kernels if hardware is present")
+    
+    args = parser.parse_args()
+
+    width = args.width
+    height = args.height
+    
+    # Calculate exactly how many sequential bytes to pull out of the stream buffer allocation window (24bpp BGR format)
+    expected_bytes_count = width * height * 3
+
+    try:
+        # 2. Block and ingest raw binary image stream straight out of the C# unmanaged memory handoff channel
+        raw_frame_bytes = sys.stdin.buffer.read(expected_bytes_count)
+        
+        # Guard clause: ensure data wasn't truncated during network interface translations
+        if len(raw_frame_bytes) != expected_bytes_count:
+            sys.stderr.write(f"Error: Ingested stream byte count ({len(raw_frame_bytes)}) mismatched layout bounds ({expected_bytes_count}).\n")
+            print("0.0")
+            sys.exit(1)
+
+        # 3. Convert the raw buffer stream into a high-performance contiguous NumPy byte matrix array
+        frame_array = np.frombuffer(raw_frame_bytes, dtype=np.uint8)
+
+        calculated_density = 0.0
+
+        # 4. Route calculations dynamically based on available physical hardware infrastructure parameters
+        if args.use_gpu and cuda.is_available():
+            # Trigger the Massive Parallel NVIDIA CUDA GPU Hardware Vector Kernel
+            calculated_density = analyze_frame_nvidia_cuda(frame_array, width, height)
+        else:
+            # Fallback seamlessly to multi-core parallel NJIT CPU scaling if an NVIDIA card isn't deployed on the rack
+            calculated_density = analyze_frame_parallel_cpu(frame_array, width, height)
+
+        # 5. Flush the calculation result scalar directly to stdout so the C# reader catches it instantly
+        print(f"{calculated_density:.4f}")
+        sys.stdout.flush()
+
+    except Exception as ex:
+        # Gracefully handle runtime drops to ensure the Windows Service layer stays informed
+        sys.stderr.write(f"Critical execution error inside processing kernel logic loops: {str(ex)}\n")
+        print("0.0")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
