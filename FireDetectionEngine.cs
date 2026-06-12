@@ -98,73 +98,39 @@ namespace GenetecEdwardsBridge
         }
     }
 }
-using System;
-using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
+
+using System.Collections.Generic;
 
 namespace GenetecEdwardsBridge
 {
-    public class FireDetectionEngine
+    public class FireWatchConfig
     {
-        private const double TriggerPercentage = 1.5;
-        private readonly string _pythonScriptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fire_cuda_engine.py");
+        public GenetecSettings GenetecConfig { get; set; }
+        public EdwardsSettings EdwardsConfig { get; set; }
+        public List<CameraMapping> HospitalMap { get; set; }
+    }
 
-        public unsafe bool AnalyzeFrameForFire(Bitmap frame, out double flameDensity)
-        {
-            flameDensity = 0.0;
-            if (frame == null) return false;
+    public class GenetecSettings
+    {
+        public string DirectoryServer { get; set; }
+        public string ServiceUser { get; set; }
+        public string ServicePassword { get; set; }
+        public string KiwiFireEventGuid { get; set; }
+    }
 
-            int width = frame.Width;
-            int height = frame.Height;
+    public class EdwardsSettings
+    {
+        public string ReceiverIp { get; set; }
+        public int ReceiverPort { get; set; }
+        public int HeartbeatIntervalSeconds { get; set; }
+    }
 
-            // Extract the raw image matrix array bytes out of memory
-            BitmapData bitmapData = frame.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
-            byte[] rawBytes = new byte[bitmapData.Stride * height];
-            System.Runtime.InteropServices.Marshal.Copy(bitmapData.Scan0, rawBytes, 0, rawBytes.Length);
-            frame.UnlockBits(bitmapData);
-
-            try
-            {
-                // Call Python engine via an optimized execution shell pipeline
-                ProcessStartInfo startInfo = new ProcessStartInfo
-                {
-                    FileName = "python.exe",
-                    Arguments = $"\"{_pythonScriptPath}\" --width {width} --height {height}",
-                    UseShellExecute = false,
-                    RedirectStandardInput = true,
-                    RedirectStandardOutput = true,
-                    CreateNoWindow = true
-                };
-
-                using (Process process = Process.Start(startInfo))
-                {
-                    if (process != null)
-                    {
-                        // Direct Binary Write stream injection to avoid standard IO encoding delays
-                        using (BinaryWriter writer = new BinaryWriter(process.StandardInput.BaseStream))
-                        {
-                            writer.Write(rawBytes);
-                            writer.Flush();
-                        }
-
-                        // Capture calculated result string
-                        string output = process.StandardOutput.ReadLine();
-                        if (double.TryParse(output, out double density))
-                        {
-                            flameDensity = density;
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Trace.WriteLine($"Hardware acceleration handoff pipeline failure: {ex.Message}");
-                return false;
-            }
-
-            return flameDensity >= TriggerPercentage;
-        }
+    public class CameraMapping
+    {
+        public string CameraGuid { get; set; }
+        public string GenetecName { get; set; }
+        public string EdwardsNode { get; set; }
+        public string EdwardsZone { get; set; }
+        public string PhysicalRoom { get; set; }
     }
 }
