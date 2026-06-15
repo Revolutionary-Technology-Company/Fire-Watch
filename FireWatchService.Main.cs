@@ -7,6 +7,19 @@ using System.ServiceProcess;
 using System.Threading;
 using Microsoft.Extensions.Configuration;
 using Genetec.Sdk;
+// Inside your FireWatchService initialization block:
+
+string aegisUrl = "https://api.revolutionary.technology/univac-aegis/ingest";
+
+// Initialize the core tools
+var protocolEncoder = new EdwardsProtocolEncoder();
+var aegisBridge = new UnivacAegisBridge(aegisUrl);
+
+// Instantiate the Edwards Node bridging the two
+var edwardsNode = new EdwardsAegisNode(aegisBridge, protocolEncoder);
+
+// When data arrives from FireWatchService.Network.cs, route it:
+// await edwardsNode.ProcessEdwardsStreamAsync(incomingBytes);
 
 namespace GenetecEdwardsBridge
 {
